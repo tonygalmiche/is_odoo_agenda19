@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--calendar.event-->
+    <!-- <record id="view_calendar_event_calendar_journee" model="ir.ui.view">
+        <field name="name">view_calendar_event_calendar_journee</field>
+        <field name="model">calendar.event</field>
+        <field name="priority" eval="99"/>
+        <field name="arch" type="xml">
+            <calendar mode="day"  js_class="attendee_calendar" string="Meetings" date_start="start" date_stop="stop" date_delay="duration" all_day="allday"
+                event_open_popup="true"
+                event_limit="5"
+                color="user_id">
+                <field name="attendee_status"/>
+                <field name="user_id" string="Responsible" filters="1" widget="many2one_avatar_user"/>
+                <field name="partner_ids" widget="many2many_tags_avatar" write_model="calendar.contacts" write_field="partner_id" avatar_field="image_128"/>
+                <field name="is_highlighted" invisible="1"/>
+                <field name="description"/>
+                <field name="privacy"/>
+                <field name="recurrency" invisible="1"/>
+                <field name="recurrence_update" invisible="1"/>
+            </calendar>
+        </field>
+    </record> -->
+
+
+
+
+    <record id="mise_a_jour_acceptee_refusee_actions_server" model="ir.actions.server">
+        <field name="name">Mise à jour acceptées/refusées</field>
+        <field name="model_id" ref="calendar.model_calendar_event"/>
+        <field name="binding_model_id" ref="calendar.model_calendar_event"/>
+        <field name="binding_view_types">form,list</field>
+        <field name="state">code</field>
+        <field name="code">action = model._mise_a_jour_acceptee_refusee_action()</field>
+    </record>
+    <record id="ajouter_invitation_responsable_actions_server" model="ir.actions.server">
+        <field name="name">Ajouter invitation responsable</field>
+        <field name="model_id" ref="calendar.model_calendar_event"/>
+        <field name="binding_model_id" ref="calendar.model_calendar_event"/>
+        <field name="binding_view_types">form,list</field>
+        <field name="state">code</field>
+        <field name="code">action = model._ajouter_invitation_responsable_action()</field>
+    </record>
+    <record id="synchroniser_google_actions_server" model="ir.actions.server">
+        <field name="name">Synchroniser avec Google</field>
+        <field name="model_id" ref="calendar.model_calendar_event"/>
+        <field name="binding_model_id" ref="calendar.model_calendar_event"/>
+        <field name="binding_view_types">form,list</field>
+        <field name="state">code</field>
+        <field name="code">action = model.synchroniser_google_action()</field>
+    </record>
+
+    <record id="is_view_calendar_event_calendar" model="ir.ui.view">
+        <field name="name">is_view_calendar_event_calendar</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_calendar"/>
+        <field name="arch" type="xml">
+            <field name="partner_ids" position="attributes">
+                <attribute name="color">is_calendar_color</attribute>
+            </field>
+            <field name="partner_ids" position="after">
+                <field name="is_participants" widget="html"/>
+            </field>
+        </field>
+    </record> 
+
+    <record id="is_view_calendar_event_form_quick_create" model="ir.ui.view">
+        <field name="name">is_view_calendar_event_form_quick_create</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_form_quick_create"/>
+        <field name="arch" type="xml">
+            <form position="inside">
+                <header>
+                    <field 
+                        name="is_alerte"
+                        style="background-color:orange;font-size:11pt;width:100%;white-space:pre-line;" 
+                        invisible="not is_alerte"
+                        readonly="1"
+                        nolabel="1"
+                    />
+                </header>
+            </form>
+        </field>
+    </record>
+
+    <record id="is_view_calendar_event_form" model="ir.ui.view">
+        <field name="name">is_view_calendar_event_form</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
+        <field name="arch" type="xml">
+            <field name="active" position="after">
+                <field 
+                    name="is_alerte"
+                    style="background-color:orange;font-size:11pt" 
+                    invisible="not is_alerte"
+                    readonly="1"
+                />
+            </field>
+	    <field name="attendee_ids" position="after">
+		 <group>
+		     <field name="is_invitation_acceptee_ids" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}" readonly="1"/>
+		     <field name="is_invitation_refusee_ids" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}" readonly="1"/>
+	         </group>
+            </field>
+
+            <!-- <notebook position="before">
+                <button
+                    name="agenda_journee_action"
+                    type="object"
+                    string="Agenda à la journée"
+                />
+            </notebook> -->
+        </field>
+    </record> 
+
+
+
+
+    <record id="is_view_calendar_event_tree" model="ir.ui.view">
+        <field name="name">is_view_calendar_event_tree</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_tree"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="description" optional="hide"/>
+                <field name="user_id"     optional="hide"/>
+            </field>
+            <field name="duration" position="replace">
+                <field name="recurrency"  optional="hide"/>
+                <field name="rrule_type"  optional="hide"/>
+                <field name="end_type"    optional="hide"/>
+                <field name="count"       optional="hide"/>
+                <field name="until"       optional="hide"/>
+                <field name="create_date" optional="hide"/>
+                <field name="write_date"  optional="hide"/>
+                <field name="create_uid"  optional="hide"/>
+                <field name="write_uid"   optional="hide"/>
+                <field name="id"          optional="hide"/>
+            </field>
+            <field name="stop" position="after">
+                <field name="duration" widget="float_time" readonly="1"/>
+            </field>
+            <field name="partner_ids" position="replace">
+                <field name="partner_ids" widget="many2many_tags" optional="hide"/>
+                <field name="alarm_ids"   widget="many2many_tags" optional="hide"/>
+                <field name="categ_ids"   widget="many2many_tags" optional="hide"/>
+                <field name="privacy" optional="hide"/>
+                <field name="show_as" optional="hide"/>
+            </field>
+            <field name="location" position="attributes">
+                <attribute name="optional">show</attribute>
+            </field>
+        </field>
+    </record> 
+
+    <record id="is_view_calendar_event_search" model="ir.ui.view">
+        <field name="name">is_view_calendar_event_search</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_search"/>
+        <field name="arch" type="xml">
+            <filter name="mymeetings" position="after">
+                <filter string="Rendez-vous acceptés" name="rdv_acceptes" domain="[('is_invitation_acceptee_ids.user_ids', 'in', uid)]"/>
+                <filter string="Rendez-vous refusés"  name="rdv_refuses"  domain="[('is_invitation_refusee_ids.user_ids', 'in', uid)]"/>
+                <filter string="Rendez-vous créés"    name="rdv_crees"    domain="[('user_id','=',uid)]"/>
+            </filter>
+        </field>
+    </record> 
+    <record id="is_mes_rendez_vous_action" model="ir.actions.act_window">
+        <field name="name">Mes rendez-vous</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">calendar.event</field>
+        <field name="view_mode">list,form</field>
+        <field name="limit">100</field>
+        <field name="domain">[('start', '&gt;=', context_today().strftime('%Y-%m-%d')), ('partner_ids.user_ids', 'in', [uid]) ]</field>
+        <field name="context">{'search_default_rdv_acceptes': True}</field>
+    </record>
+    <menuitem 
+        name="Mes rendez-vous" 
+        id="is_mes_rendez_vous_menu" 
+        parent="calendar.mail_menu_calendar" 
+        sequence="10"  
+        action="is_mes_rendez_vous_action"
+    />
+
+
+    <!--calendar.attendee-->
+    <record id="accepter_invitation_actions_server" model="ir.actions.server">
+        <field name="name">Accepter l'invitation</field>
+        <field name="model_id" ref="calendar.model_calendar_attendee"/>
+        <field name="binding_model_id" ref="calendar.model_calendar_attendee"/>
+        <field name="binding_view_types">form,list</field>
+        <field name="state">code</field>
+        <field name="code">action = model._accepter_invitation_actions()</field>
+    </record>
+    <record id="refuser_invitation_actions_server" model="ir.actions.server">
+        <field name="name">Refuser l'invitation</field>
+        <field name="model_id" ref="calendar.model_calendar_attendee"/>
+        <field name="binding_model_id" ref="calendar.model_calendar_attendee"/>
+        <field name="binding_view_types">form,list</field>
+        <field name="state">code</field>
+        <field name="code">action = model._refuser_invitation_actions()</field>
+    </record>
+    <record id="is_mes_invitations_tree" model="ir.ui.view">
+        <field name="name">is_mes_invitations_tree</field>
+        <field name="model">calendar.attendee</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="event_id"/>
+                <field name="partner_id"/>
+                <field name="is_user_id" optional="hide"/>
+                <field name="state"/>
+                <field name="email" widget="email"/>
+                <button name="do_tentative" invisible="state not in ['needsAction', 'declined', 'accepted']" string="Uncertain" type="object" icon="fa-asterisk"/>
+                <button name="do_accept" string="Accept" invisible="state not in ['needsAction', 'tentative', 'declined']" type="object" icon="fa-check text-success"/>
+                <button name="do_decline" string="Decline" invisible="state not in ['needsAction', 'tentative', 'accepted']" type="object" icon="fa-times-circle text-danger"/>
+                <field name="create_date" optional="hide"/>
+                <field name="write_date"  optional="hide"/>
+                <field name="create_uid"  optional="hide"/>
+                <field name="write_uid"   optional="hide"/>
+                <field name="id"          optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="is_mes_invitations_search" model="ir.ui.view">
+        <field name="name">is_mes_invitations_search</field>
+        <field name="model">calendar.attendee</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="event_id"/>
+                <field name="partner_id"/>
+                <field name="is_user_id"/>
+                <field name="state"/>
+                <field name="email"/>
+                <filter string="Nécessite une action" name="needsAction" domain="[('state', '=', 'needsAction')]"/>
+                <filter string="Etat" name="state" domain="[]" context="{'group_by': 'state'}"/>
+            </search> 
+        </field>
+    </record>
+    <record id="is_mes_invitations_action" model="ir.actions.act_window">
+        <field name="name">Mes invitations</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">calendar.attendee</field>
+        <field name="view_mode">list,form</field>
+        <field name="limit">100</field>
+        <field name="domain">[('is_user_id','=',uid),('event_id.start', '&gt;=', context_today().strftime('%Y-%m-%d'))]</field>
+        <field name="context">{'search_default_needsAction': True}</field>
+    </record>
+
+
+
+    <menuitem 
+        name="Mes invitations" 
+        id="is_mes_invitations_menu" 
+        parent="calendar.mail_menu_calendar" 
+        sequence="20"  
+        action="is_mes_invitations_action"
+    />
+</odoo>

@@ -1,0 +1,18 @@
+// Éclaircir les couleurs des cases à cocher du sidebar calendrier
+// pour correspondre aux couleurs pâles des événements (mix 55% blanc + 45% couleur)
+@for $i from 1 through length($o-colors-complete) {
+    $color: nth($o-colors-complete, $i);
+    $color-subtle: mix(white, $color, 55%);
+
+    .o_cw_filter_color_#{$i - 1} {
+        &.form-check:hover .o_cw_filter_input_bg:not(.no_filter_color) {
+            border-color: shade-color($color-subtle, 20%);
+        }
+        .o_cw_filter_input_bg {
+            border-color: $color-subtle;
+            &:checked {
+                background-color: $color-subtle;
+            }
+        }
+    }
+}

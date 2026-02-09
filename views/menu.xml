@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem name="Agenda Plastigray"  id="calendar.mail_menu_calendar" sequence="0" />
+</odoo>

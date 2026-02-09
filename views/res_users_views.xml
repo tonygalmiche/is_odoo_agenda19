@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="is_res_users_form_view" model="ir.ui.view">
+        <field name="name">is.res.users.form.calendar.color</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page name="plastigray" string="Plastigray">
+                    <group>
+                        <group>
+                            <field name="is_calendar_color" readonly="0" string="Couleur Agenda (0 = automatique)"/>
+                        </group>
+                    </group>
+                    <separator string="Palette des couleurs disponibles"/>
+                    <field name="is_calendar_color_table" nolabel="1" readonly="1"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
