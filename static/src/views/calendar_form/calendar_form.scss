@@ -1,0 +1,10 @@
+// Masquer le bandeau "Modifier l'événement récurrent" par défaut
+// et ne l'afficher que quand le formulaire a des modifications non sauvegardées
+
+// TODO : Cela fonctionne, mais il y a un risque d'enregsiter le mauvais choix par défaut
+// .o_calendar_event_form_view .alert-info {
+//     display: none !important;
+// }
+// .o_calendar_event_form_view .o_form_dirty .alert-info {
+//     display: flex !important;
+// }

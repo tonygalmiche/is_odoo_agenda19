@@ -177,6 +177,27 @@ class CalendarAttendee(models.Model):
             obj.is_user_id=user_id
     is_user_id = fields.Many2one('res.users', 'Utilisateur', compute='_compute_is_user_id', store=True, readonly=True, index=True)
 
+    def do_accept(self):
+        for attendee in self:
+            attendee.event_id.sudo().message_post(
+                author_id=attendee.partner_id.id,
+                body=_("%s has accepted the invitation", attendee.common_name),
+                subtype_xmlid="calendar.subtype_invitation",
+            )
+        return self.sudo().write({'state': 'accepted'})
+
+    def do_decline(self):
+        for attendee in self:
+            attendee.event_id.sudo().message_post(
+                author_id=attendee.partner_id.id,
+                body=_("%s has declined the invitation", attendee.common_name),
+                subtype_xmlid="calendar.subtype_invitation",
+            )
+        return self.sudo().write({'state': 'declined'})
+
+    def do_tentative(self):
+        return self.sudo().write({'state': 'tentative'})
+
     def _accepter_invitation_actions(self):
         for obj in self.browse(self.env.context['active_ids']):
             obj.state="accepted"
