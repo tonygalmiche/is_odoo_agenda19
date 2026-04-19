@@ -74,6 +74,9 @@ class ResPartner(models.Model):
         b = int(white_pct * 255 + (1 - white_pct) * int(h[4:6], 16))
         return f'#{r:02x}{g:02x}{b:02x}'
 
+    def action_recalcul_complete_name(self):
+        self._compute_complete_name()
+
     def _avatar_generate_svg(self):
         """Surcharge pour utiliser la couleur agenda (éclaircie) comme couleur d'avatar quand is_calendar_color > 0"""
         if self.is_calendar_color and 0 < self.is_calendar_color < len(CALENDAR_COLORS):
