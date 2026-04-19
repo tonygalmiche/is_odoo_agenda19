@@ -9,6 +9,12 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
+    <menuitem name="Calendrier par créateur"
+              id="menu_is_calendar_by_creator"
+              parent="calendar.mail_menu_calendar"
+              action="is_odoo_agenda19.is_action_calendar_by_creator"
+              sequence="5"/>
+
     <menuitem name="Contacts"
               id="menu_is_contacts"
               parent="calendar.mail_menu_calendar"

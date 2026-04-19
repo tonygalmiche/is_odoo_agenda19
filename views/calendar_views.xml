@@ -1,30 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--calendar.event-->
-    <!-- <record id="view_calendar_event_calendar_journee" model="ir.ui.view">
-        <field name="name">view_calendar_event_calendar_journee</field>
+    <!-- Vue calendrier colorée par créateur (user_id) -->
+    <record id="is_view_calendar_event_by_creator" model="ir.ui.view">
+        <field name="name">is_view_calendar_event_by_creator</field>
         <field name="model">calendar.event</field>
-        <field name="priority" eval="99"/>
+        <field name="priority" eval="10"/>
         <field name="arch" type="xml">
-            <calendar mode="day"  js_class="attendee_calendar" string="Meetings" date_start="start" date_stop="stop" date_delay="duration" all_day="allday"
+            <calendar js_class="creator_calendar" string="Réunions par créateur" date_start="start" date_stop="stop" date_delay="duration" all_day="allday"
                 event_open_popup="true"
                 event_limit="5"
+                quick_create="true"
+                quick_create_view_id="%(calendar.view_calendar_event_form_quick_create)d"
                 color="user_id">
-                <field name="attendee_status"/>
-                <field name="user_id" string="Responsible" filters="1" widget="many2one_avatar_user"/>
-                <field name="partner_ids" widget="many2many_tags_avatar" write_model="calendar.contacts" write_field="partner_id" avatar_field="image_128"/>
+                <field name="attendees_count" invisible="1"/>
+                <field name="accepted_count" invisible="1"/>
+                <field name="declined_count" invisible="1"/>
+                <field name="user_can_edit" invisible="1"/>
                 <field name="is_highlighted" invisible="1"/>
-                <field name="description"/>
-                <field name="privacy"/>
+                <field name="privacy" invisible="1"/>
+                <field name="effective_privacy" invisible="1"/>
                 <field name="recurrency" invisible="1"/>
                 <field name="recurrence_update" invisible="1"/>
+                <field name="location" invisible="not location" options="{'icon': 'fa fa-map-marker'}"/>
+                <field name="partner_ids" options="{'block': True, 'icon': 'fa fa-users'}"
+                       filters="1" widget="many2manyattendeeexpandable" write_model="calendar.filters"
+                       write_field="partner_id" filter_field="partner_checked" avatar_field="avatar_128"/>
+                <field name="videocall_location" widget="CopyClipboardURL" text="Join Video Call"
+                       options="{'icon': 'fa fa-lg fa-video-camera'}" invisible="not videocall_location"/>
+                <field name="alarm_ids" invisible="not alarm_ids" options="{'icon': 'fa fa-bell-o'}"/>
+                <field name="is_participants" widget="html"/>
+                <field name="is_creator_calendar_color" invisible="1"/>
+                <field name="partner_id" invisible="1"/>
             </calendar>
         </field>
-    </record> -->
+    </record>
 
-
-
+    <record id="is_action_calendar_by_creator" model="ir.actions.act_window">
+        <field name="name">Calendrier par créateur</field>
+        <field name="res_model">calendar.event</field>
+        <field name="view_mode">calendar,list,form</field>
+        <field name="view_id" ref="is_view_calendar_event_by_creator"/>
+        <field name="search_view_id" ref="calendar.view_calendar_event_search"/>
+    </record>
 
     <record id="mise_a_jour_acceptee_refusee_actions_server" model="ir.actions.server">
         <field name="name">Mise à jour acceptées/refusées</field>

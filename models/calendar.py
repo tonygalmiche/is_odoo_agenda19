@@ -113,6 +113,17 @@ class CalendarEvent(models.Model):
     is_alerte       = fields.Text('Alerte'      , copy=False, compute=_compute_is_alerte)
     is_participants = fields.Html('Participants', copy=False, compute=_compute_is_participants, sanitize=False)
 
+    @api.depends('user_id.partner_id.is_calendar_color')
+    def _compute_is_creator_calendar_color(self):
+        for event in self:
+            partner = event.user_id.partner_id
+            color = partner.is_calendar_color if partner else 0
+            # Si color=0, utiliser l'id du partenaire comme index unique
+            event.is_creator_calendar_color = color if color else (partner.id if partner else 0)
+
+    is_creator_calendar_color = fields.Integer(
+        'Couleur créateur', compute=_compute_is_creator_calendar_color)
+
 
     def _ajouter_invitation_responsable_action(self):
         for obj in self.browse(self.env.context['active_ids']):
