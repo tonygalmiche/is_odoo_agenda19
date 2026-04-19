@@ -211,15 +211,15 @@ class CalendarAttendee(models.Model):
 
     def _accepter_invitation_actions(self):
         for obj in self.browse(self.env.context['active_ids']):
-            obj.state="accepted"
+            obj.sudo().write({'state': 'accepted'})
 
     def _refuser_invitation_actions(self):
         for obj in self.browse(self.env.context['active_ids']):
-            obj.state="declined"
+            obj.sudo().write({'state': 'declined'})
 
     def write(self, vals):
         res = super(CalendarAttendee, self).write(vals)
-        self.env['calendar.event'].synchroniser_google_user(self.event_id,self.is_user_id)
+        self.env['calendar.event'].sudo().synchroniser_google_user(self.event_id, self.is_user_id)
         self.synchro_refusee_acceptee()
         if 'state' in vals and vals['state'] == 'declined':
             self.send_mail_decline()

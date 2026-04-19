@@ -3,6 +3,7 @@ from base64 import b64encode
 from odoo import api, fields, models
 from odoo.tools import html_escape
 
+
 # Palette complète des 56 couleurs Odoo 19 (index 0 à 55)
 # Correspondance avec $o-colors-complete dans secondary_variables.scss
 CALENDAR_COLORS = [
