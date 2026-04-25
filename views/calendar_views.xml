@@ -172,6 +172,10 @@
             <field name="location" position="attributes">
                 <attribute name="optional">show</attribute>
             </field>
+            <field name="location" position="after">
+                <field name="is_teams_event_id" optional="hide"/>
+                <field name="is_teams_ical_uid" optional="hide"/>
+            </field>
         </field>
     </record> 
 
