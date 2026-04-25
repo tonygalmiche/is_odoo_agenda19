@@ -20,4 +20,7 @@
               parent="calendar.mail_menu_calendar"
               action="action_is_contacts"
               sequence="35"/>
+
+    <!-- Restreint le menu Apps aux administrateurs système uniquement -->
+    <!-- Fait via post_migrate hook dans hooks.py -->
 </odoo>
