@@ -209,6 +209,16 @@ class CalendarAttendee(models.Model):
     def do_tentative(self):
         return self.sudo().write({'state': 'tentative'})
 
+    def action_open_event(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'calendar.event',
+            'res_id': self.event_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
     def _accepter_invitation_actions(self):
         for obj in self.browse(self.env.context['active_ids']):
             obj.sudo().write({'state': 'accepted'})

@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="is_view_partner_tree" model="ir.ui.view">
+        <field name="name">is_view_partner_tree</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <list position="replace">
+                <list string="Contacts" sample="1" multi_edit="1">
+                    <field name="avatar_128" widget="image" options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}" width="30" nolabel="1"/>
+                    <field name="complete_name" string="Nom"/>
+                    <field name="email"/>
+                    <field name="activity_ids" widget="list_activity" optional="show"/>
+                    <field name="application_statistics" widget="contact_statistics" nolabel="1" optional="show" width="270"/>
+                </list>
+            </list>
+        </field>
+    </record>
+
     <record id="action_recalcul_complete_name" model="ir.actions.server">
         <field name="name">Recalculer complete_name des partenaires</field>
         <field name="model_id" ref="base.model_res_partner"/>

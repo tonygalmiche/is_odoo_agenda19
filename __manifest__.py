@@ -16,6 +16,7 @@
         "base",
         "calendar",
         "google_calendar",
+        "web_m2x_options",
     ], 
     "data" : [
         "security/res.groups.xml",
@@ -25,6 +26,7 @@
         "views/res_users_views.xml",
         "views/mail_data.xml",
         "views/menu.xml",
+        "views/login_templates.xml",
     ],
     "installable": True,
     "application": True,

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Supprime le lien "Généré par Odoo" et "Gestion des bases de données" sur la page de login -->
+    <template id="is_login_layout" inherit_id="web.login_layout">
+        <xpath expr="//a[@href[contains(., 'odoo.com')]]" position="replace"/>
+        <xpath expr="//t[@t-if='not disable_database_manager']" position="replace"/>
+    </template>
+
+    <!-- Supprime le bouton "Connexion en tant que superutilisateur" (visible en mode debug) -->
+    <template id="is_login_superuser" inherit_id="web.login">
+        <xpath expr="//button[@value='/web/become']/.." position="replace"/>
+    </template>
+
+    <!-- Supprime le bouton "Utiliser une clé d'accès" (module auth_passkey) -->
+    <record id="auth_passkey.auth_passkey_login_oauth" model="ir.ui.view">
+        <field name="active" eval="False"/>
+    </record>
+</odoo>

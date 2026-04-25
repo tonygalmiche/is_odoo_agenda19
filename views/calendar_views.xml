@@ -107,6 +107,9 @@
         <field name="model">calendar.event</field>
         <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
         <field name="arch" type="xml">
+            <page name="page_invitations" position="attributes">
+                <attribute name="groups"></attribute>
+            </page>
             <field name="active" position="after">
                 <field 
                     name="is_alerte"
@@ -224,6 +227,7 @@
         <field name="model">calendar.attendee</field>
         <field name="arch" type="xml">
             <list>
+                <button name="action_open_event" string="" type="object" icon="fa-search" title="Ouvrir l'événement"/>
                 <field name="event_id"/>
                 <field name="partner_id"/>
                 <field name="is_user_id" optional="hide"/>
@@ -260,7 +264,7 @@
         <field name="name">Mes invitations</field>
         <field name="type">ir.actions.act_window</field>
         <field name="res_model">calendar.attendee</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list</field>
         <field name="limit">100</field>
         <field name="domain">[('is_user_id','=',uid),('event_id.start', '&gt;=', context_today().strftime('%Y-%m-%d'))]</field>
         <field name="context">{'search_default_needsAction': True}</field>
