@@ -211,8 +211,17 @@ class CalendarEvent(models.Model):
             if start_date and start_date >= fields.Datetime.now():
                 for attendee in self.attendee_ids:
                     if attendee.partner_id.id != self.partner_id.id and attendee.state in ['accepted', 'declined']:
-                        attendee.state = 'needsAction'
-        return super(CalendarEvent, self).write(values)
+                        attendee.with_context(skip_google_sync=True).write({'state': 'needsAction'})
+        res = super(CalendarEvent, self).write(values)
+        # Synchroniser Google pour tous les participants si des champs pertinents ont changé
+        sync_fields = {'name', 'start', 'stop', 'duration', 'description', 'location', 'allday'}
+        if sync_fields & set(values.keys()):
+            for event in self:
+                for attendee in event.attendee_ids:
+                    self.env['calendar.event'].sudo().synchroniser_google_user(
+                        event, attendee.is_user_id, attendee
+                    )
+        return res
 
     is_invitation_refusee_ids  = fields.Many2many(comodel_name='res.partner', relation='calendar_event_res_partner_refusee', column1="event_id", column2="partner_id", string="Utilisateurs ayant refusés")
     is_invitation_acceptee_ids = fields.Many2many(comodel_name='res.partner', relation='calendar_event_res_partner_acceptee', column1="event_id", column2="partner_id", string="Utilisateurs ayant acceptés")
