@@ -229,7 +229,8 @@ class CalendarAttendee(models.Model):
 
     def write(self, vals):
         res = super(CalendarAttendee, self).write(vals)
-        self.env['calendar.event'].sudo().synchroniser_google_user(self.event_id, self.is_user_id)
+        for attendee in self:
+            self.env['calendar.event'].sudo().synchroniser_google_user(attendee.event_id, attendee.is_user_id)
         self.synchro_refusee_acceptee()
         if 'state' in vals and vals['state'] == 'declined':
             self.send_mail_decline()
