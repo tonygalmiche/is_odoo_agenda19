@@ -174,6 +174,31 @@ class CalendarEvent(models.Model):
         'Couleur créateur', compute=_compute_is_creator_calendar_color)
 
 
+    def unlink(self):
+        # Avant la suppression définitive, supprimer l'événement du Google Agenda
+        # de chaque participant non-créateur ayant un is_google_event_id.
+        # On collecte les infos nécessaires AVANT le super() car après,
+        # les enregistrements n'existent plus.
+        for event in self:
+            for attendee in event.attendee_ids:
+                user = attendee.is_user_id
+                if not user or event.user_id == user:
+                    continue
+                if not attendee.is_google_event_id:
+                    continue
+                user_sudo = user.sudo()
+                if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
+                    continue
+                with google_calendar_token(user_sudo) as token:
+                    if token:
+                        try:
+                            gs = GoogleCalendarService(self.with_user(user).env['google.service'])
+                            _logger.info("## Google delete (unlink) participant user=%s event=%s", user.login, attendee.is_google_event_id)
+                            gs.delete(attendee.is_google_event_id, token=token, timeout=3)
+                        except Exception:
+                            _logger.exception("## Google delete (unlink) ERROR user=%s", user.login)
+        return super(CalendarEvent, self).unlink()
+
     def _ajouter_invitation_responsable_action(self):
         for obj in self.browse(self.env.context['active_ids']):
             for partner in obj.partner_ids:
