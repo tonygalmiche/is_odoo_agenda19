@@ -356,13 +356,14 @@ class CalendarAttendee(models.Model):
             attachment_ids=attachment_ids,
             force_send=force_send)
 
-    @api.model
-    def create(self, vals):
-        res = super(CalendarAttendee, self).create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        res = super(CalendarAttendee, self).create(vals_list)
         res.synchro_refusee_acceptee()
-        self.env['calendar.event'].sudo().synchroniser_google_user(
-            res.event_id, res.is_user_id, res
-        )
+        for attendee in res:
+            self.env['calendar.event'].sudo().synchroniser_google_user(
+                attendee.event_id, attendee.is_user_id, attendee
+            )
         return res
 
     def synchro_refusee_acceptee(self):
