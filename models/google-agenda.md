@@ -252,3 +252,60 @@ SELECT user_id, google_calendar_rtoken, google_calendar_token, google_calendar_t
 FROM res_users_settings
 WHERE user_id = <id_utilisateur>;
 ```
+
+---
+
+## Synchronisation Google Agenda pour les participants non-créateurs
+
+### Problème d'origine
+
+La synchronisation native d'Odoo ne fonctionne que depuis la perspective du **créateur** d'un événement (`calendar_event.user_id`). Lorsqu'un administrateur crée un rendez-vous en y ajoutant un autre utilisateur (ex. Tony), Odoo stocke le `google_id` de l'événement dans le calendrier Google **d'Admin**, pas dans celui de Tony.
+
+Tenter un `patch` Google avec cet ID depuis le compte Tony échoue silencieusement car l'événement n'existe pas dans son calendrier.
+
+### Solution implémentée (module `is_odoo_agenda19`)
+
+#### Nouveau champ : `is_google_event_id` sur `calendar.attendee`
+
+Chaque participant dispose maintenant de son propre identifiant Google (`is_google_event_id`). Il est distinct du `google_id` de l'événement (qui appartient au créateur).
+
+```
+calendar.attendee
+├── is_user_id          (Many2one res.users, calculé depuis partner_id)
+└── is_google_event_id  (Char, ID de l'événement dans le Google Agenda du participant)
+```
+
+#### Logique de `synchroniser_google_user(event, user, attendee)`
+
+| Condition | Action Google |
+|---|---|
+| `user` sans `google_calendar_rtoken` ou synchro arrêtée | Rien (sortie immédiate) |
+| `user` = créateur de l'événement | `PATCH` avec `event.google_id` (comportement d'origine) |
+| Participant, état = `declined` + `is_google_event_id` connu | `DELETE` dans son agenda, efface `is_google_event_id` |
+| Participant, `is_google_event_id` inconnu | `INSERT` dans son agenda, stocke l'ID retourné dans `is_google_event_id` |
+| Participant, `is_google_event_id` déjà connu | `PATCH` avec son `is_google_event_id` |
+
+Les appels `INSERT`/`PATCH` participants sont faits avec `send_updates=False` pour ne pas envoyer d'invitations Google.
+
+#### Déclenchement de la synchronisation
+
+La fonction est appelée depuis trois points :
+
+1. **`CalendarAttendee.create()`** — quand un participant est ajouté à un événement (création batch gérée avec `@api.model_create_multi`)
+2. **`CalendarAttendee.write()`** — quand l'état d'un participant change (ex. accepté → refusé), sauf si `skip_google_sync=True` dans le contexte
+3. **`CalendarEvent.write()`** — quand un champ métier de l'événement est modifié (`name`, `start`, `stop`, `duration`, `description`, `location`, `allday`)
+
+#### Protection anti-récursion
+
+Quand `synchroniser_google_user` écrit l'`is_google_event_id` retourné par Google dans l'attendee, il utilise `with_context(skip_google_sync=True)` pour éviter que ce `write()` ne redéclenche une nouvelle synchro.
+
+#### Filtre sur les utilisateurs concernés
+
+Seuls les utilisateurs ayant **activé** la synchronisation Google Agenda sont traités :
+
+```python
+if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
+    return
+```
+
+Cela évite des appels API inutiles pour les ~90 utilisateurs sans compte Google connecté.

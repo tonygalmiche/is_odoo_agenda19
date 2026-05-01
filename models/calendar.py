@@ -205,6 +205,10 @@ class CalendarEvent(models.Model):
     #         return res
 
     def write(self, values):
+        # Quand la date/heure change, on remet les attendees qui avaient déjà
+        # répondu (accepté ou refusé) en état "needsAction" pour qu'ils
+        # confirment de nouveau. On utilise skip_google_sync=True pour éviter
+        # de déclencher une synchro Google sur ce seul changement d'état.
         if 'start' in values:
             start_date = fields.Datetime.to_datetime(values.get('start'))
             # Only notify on future events
@@ -213,7 +217,10 @@ class CalendarEvent(models.Model):
                     if attendee.partner_id.id != self.partner_id.id and attendee.state in ['accepted', 'declined']:
                         attendee.with_context(skip_google_sync=True).write({'state': 'needsAction'})
         res = super(CalendarEvent, self).write(values)
-        # Synchroniser Google pour tous les participants si des champs pertinents ont changé
+        # Après la sauvegarde, synchroniser vers Google Agenda pour chaque
+        # participant ayant activé la synchro Google, mais uniquement si l'un
+        # des champs métier pertinents a été modifié. On itère sur self car
+        # write() peut porter sur plusieurs événements à la fois.
         sync_fields = {'name', 'start', 'stop', 'duration', 'description', 'location', 'allday'}
         if sync_fields & set(values.keys()):
             for event in self:
@@ -288,6 +295,9 @@ class CalendarAttendee(models.Model):
 
     def write(self, vals):
         res = super(CalendarAttendee, self).write(vals)
+        # Après chaque modification d'un attendee, on synchronise vers Google
+        # Agenda — sauf si on est dans un contexte skip_google_sync=True (utilisé
+        # pour éviter la récursion lors de l'écriture de is_google_event_id).
         if not self.env.context.get('skip_google_sync'):
             for attendee in self:
                 self.env['calendar.event'].sudo().synchroniser_google_user(
@@ -367,6 +377,11 @@ class CalendarAttendee(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # On utilise @api.model_create_multi (Odoo 19) car Odoo peut créer
+        # plusieurs calendar.attendee en une seule requête (ex. quand on
+        # ajoute plusieurs participants d'un coup). On itère ensuite sur
+        # chaque attendee individuellement pour éviter l'erreur ensure_one()
+        # lors de l'accès à is_user_id.
         res = super(CalendarAttendee, self).create(vals_list)
         res.synchro_refusee_acceptee()
         for attendee in res:
