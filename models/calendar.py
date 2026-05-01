@@ -22,32 +22,82 @@ class CalendarEvent(models.Model):
                     kwargs['domain'][idx][0] = 'is_invitation_acceptee_ids'
         return super(CalendarEvent, self).search_read(*args, **kwargs)
 
-    def synchroniser_google_user(self,event,user):
-        if user:
-            with google_calendar_token(user.sudo()) as token:
-                if token:
-                    _logger.warning("## token = %s" % (token))
-                    headers = {'Content-type': 'application/json', 'Authorization': 'Bearer %s' % token}
-                    params = {'access_token': token}
-                    values = event._google_values()
-                    _logger.warning("## values = %s" % (values))
+    def synchroniser_google_user(self, event, user, attendee=None):
+        """Synchronise un événement vers le Google Agenda d'un utilisateur.
+
+        - Créateur de l'événement : patch standard via event.google_id
+        - Participant non-créateur :
+            * refusé  → supprime l'événement de son Google Agenda
+            * sinon   → insère (1re fois) ou met à jour (is_google_event_id déjà connu)
+        """
+        if not user:
+            return
+        # Ne synchroniser que les utilisateurs ayant activé la synchro Google Agenda
+        user_sudo = user.sudo()
+        if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
+            return
+            return
+        with google_calendar_token(user.sudo()) as token:
+            if not token:
+                return
+            values = event._google_values()
+            is_creator = (event.user_id == user)
+            if is_creator:
+                # Comportement d'origine : patch avec le google_id de l'événement
+                event_google_id = values.get('id')
+                if not event_google_id:
+                    return
+                try:
                     google_service = GoogleCalendarService(self.with_user(user).env['google.service'])
-                    event_id = values.get('id')
-                    _logger.warning("## synchroniser_google_action event_id = %s" % (event_id))
+                    _logger.info("## Google patch créateur user=%s event=%s", user.login, event_google_id)
+                    event.with_user(user)._google_patch(google_service, event_google_id, values, timeout=3)
+                except Exception:
+                    _logger.exception("## Google patch ERROR créateur event=%s", event)
+            else:
+                # Participant : utiliser l'ID Google propre à cet attendee
+                gs = GoogleCalendarService(
+                    self.with_user(user).with_context(send_updates=False).env['google.service']
+                )
+                if attendee and attendee.state == 'declined':
+                    if attendee.is_google_event_id:
+                        try:
+                            _logger.info("## Google delete participant user=%s", user.login)
+                            gs.delete(attendee.is_google_event_id, token=token, timeout=3)
+                            attendee.sudo().with_context(skip_google_sync=True).write({'is_google_event_id': False})
+                        except Exception:
+                            _logger.exception("## Google delete ERROR user=%s", user.login)
+                    return
+                # Préparer les valeurs sans l'ID du créateur
+                values_participant = {k: v for k, v in values.items() if k != 'id'}
+                attendee_google_id = attendee.is_google_event_id if attendee else False
+                if attendee_google_id:
+                    # L'événement existe déjà dans son agenda → patch
                     try:
-                        _logger.warning("## _google_patch event = %s" % (event))
-                        event.with_user(user)._google_patch(google_service, event_id, values, timeout=3)
-                    except:
-                        _logger.exception("## _google_patch  ERROR event = %s" % (event))
+                        _logger.info("## Google patch participant user=%s event=%s", user.login, attendee_google_id)
+                        gs.patch(attendee_google_id, values_participant, token=token, timeout=3)
+                    except Exception:
+                        _logger.exception("## Google patch ERROR participant user=%s", user.login)
+                else:
+                    # Première synchro → insertion dans son agenda
+                    try:
+                        _logger.info("## Google insert participant user=%s", user.login)
+                        google_values = gs.insert(values_participant, token=token, timeout=3, need_video_call=False)
+                        new_google_id = google_values and google_values.get('id')
+                        if new_google_id and attendee:
+                            attendee.sudo().with_context(skip_google_sync=True).write(
+                                {'is_google_event_id': new_google_id}
+                            )
+                    except Exception:
+                        _logger.exception("## Google insert ERROR participant user=%s", user.login)
 
 
     def synchroniser_google_action(self):
         for obj in self.browse(self.env.context['active_ids']):
             for line in obj.attendee_ids:
-                user=line.is_user_id
-                _logger.warning("## synchroniser_google_action user = %s" % (user.login))
+                user = line.is_user_id
                 if user:
-                    self.synchroniser_google_user(obj,user)
+                    _logger.info("## synchroniser_google_action user=%s", user.login)
+                    self.synchroniser_google_user(obj, user, line)
 
 
     @api.onchange('partner_ids','start','duration')
@@ -187,6 +237,7 @@ class CalendarAttendee(models.Model):
                     user_id=users[0].id
             obj.is_user_id=user_id
     is_user_id = fields.Many2one('res.users', 'Utilisateur', compute='_compute_is_user_id', store=True, readonly=True, index=True)
+    is_google_event_id = fields.Char('Google Event ID (participant)', copy=False, index=True)
 
     def do_accept(self):
         for attendee in self:
@@ -229,8 +280,11 @@ class CalendarAttendee(models.Model):
 
     def write(self, vals):
         res = super(CalendarAttendee, self).write(vals)
-        for attendee in self:
-            self.env['calendar.event'].sudo().synchroniser_google_user(attendee.event_id, attendee.is_user_id)
+        if not self.env.context.get('skip_google_sync'):
+            for attendee in self:
+                self.env['calendar.event'].sudo().synchroniser_google_user(
+                    attendee.event_id, attendee.is_user_id, attendee
+                )
         self.synchro_refusee_acceptee()
         if 'state' in vals and vals['state'] == 'declined':
             self.send_mail_decline()

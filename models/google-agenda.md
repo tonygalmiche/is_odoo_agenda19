@@ -226,3 +226,29 @@ Pour chaque calendrier individuellement :
 1. Dans le menu gauche, cliquer sur **⋮** à côté du calendrier → **Paramètres et partage**
 2. Section **Autres notifications** → mettre tous les champs sur **Aucun**
 3. Section **Notifications d'événements** → supprimer toutes les notifications par e-mail (conserver uniquement les notifications dans l'application si souhaité)
+
+---
+
+## Stockage des tokens Google en base de données
+
+Les informations de connexion Google Agenda d'un utilisateur ne sont **pas** stockées directement dans la table `res_users`, mais dans le modèle **`res.users.settings`** (table `res_users_settings`).
+
+Les champs sur `res.users` ne sont que des champs `related` (lecture seule) pointant vers `res_users_settings_id` :
+
+| Champ | Description |
+|---|---|
+| `google_calendar_rtoken` | Refresh token OAuth2 (visible en mode admin uniquement) |
+| `google_calendar_token` | Access token OAuth2 (jeton d'accès courant) |
+| `google_calendar_token_validity` | Date d'expiration de l'access token |
+| `google_calendar_sync_token` | Token de synchronisation incrémentale Google |
+| `google_calendar_cal_id` | Identifiant du calendrier Google de l'utilisateur |
+| `google_synchronization_stopped` | `true` si l'utilisateur a arrêté manuellement la synchro |
+
+Pour consulter ces valeurs directement en SQL :
+
+```sql
+SELECT user_id, google_calendar_rtoken, google_calendar_token, google_calendar_token_validity,
+       google_calendar_sync_token, google_calendar_cal_id, google_synchronization_stopped
+FROM res_users_settings
+WHERE user_id = <id_utilisateur>;
+```
