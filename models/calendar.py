@@ -36,7 +36,6 @@ class CalendarEvent(models.Model):
         user_sudo = user.sudo()
         if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
             return
-            return
         with google_calendar_token(user.sudo()) as token:
             if not token:
                 return
@@ -361,6 +360,9 @@ class CalendarAttendee(models.Model):
     def create(self, vals):
         res = super(CalendarAttendee, self).create(vals)
         res.synchro_refusee_acceptee()
+        self.env['calendar.event'].sudo().synchroniser_google_user(
+            res.event_id, res.is_user_id, res
+        )
         return res
 
     def synchro_refusee_acceptee(self):
