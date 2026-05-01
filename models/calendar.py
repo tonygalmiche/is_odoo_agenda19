@@ -216,6 +216,31 @@ class CalendarEvent(models.Model):
                 for attendee in self.attendee_ids:
                     if attendee.partner_id.id != self.partner_id.id and attendee.state in ['accepted', 'declined']:
                         attendee.with_context(skip_google_sync=True).write({'state': 'needsAction'})
+        # Si l'événement est archivé (supprimé côté Odoo), supprimer l'entrée
+        # du Google Agenda de chaque participant non-créateur ayant un
+        # is_google_event_id. On le fait AVANT le super() car après, les
+        # tokens ne sont plus accessibles proprement.
+        if values.get('active') is False:
+            for event in self:
+                for attendee in event.attendee_ids:
+                    user = attendee.is_user_id
+                    if not user or event.user_id == user:
+                        continue
+                    if not attendee.is_google_event_id:
+                        continue
+                    user_sudo = user.sudo()
+                    if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
+                        continue
+                    with google_calendar_token(user_sudo) as token:
+                        if token:
+                            try:
+                                gs = GoogleCalendarService(
+                                    self.with_user(user).env['google.service']
+                                )
+                                _logger.info("## Google delete (archive) participant user=%s event=%s", user.login, attendee.is_google_event_id)
+                                gs.delete(attendee.is_google_event_id, token=token, timeout=3)
+                            except Exception:
+                                _logger.exception("## Google delete (archive) ERROR user=%s", user.login)
         res = super(CalendarEvent, self).write(values)
         # Après la sauvegarde, synchroniser vers Google Agenda pour chaque
         # participant ayant activé la synchro Google, mais uniquement si l'un
