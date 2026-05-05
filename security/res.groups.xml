@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <record model="res.groups" id="is_google_synchronisation_group">
-        <field name="name">Google Synchronisation</field>
+        <field name="name">Synchro Google Agenda</field>
+        <field name="comment">Les membres de ce groupe peuvent modifier les événements dont ils sont participants (nécessaire pour la synchronisation Google Agenda).</field>
     </record>
 </odoo>

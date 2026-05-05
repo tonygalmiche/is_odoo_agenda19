@@ -21,6 +21,18 @@
             <field eval="1" name="perm_read"/>
             <field eval="1" name="perm_create"/>
         </record>
+
+        <record id="is_calendar_event_participant_access_rule" model="ir.rule">
+            <field name="name">Accès en modification aux participants (Synchro Google Agenda)</field>
+            <field name="model_id" ref="calendar.model_calendar_event"/>
+            <field name="domain_force">[('partner_ids', 'in', user.partner_id.id)]</field>
+            <field name="groups" eval="[(4, ref('is_odoo_agenda19.is_google_synchronisation_group'))]"/>
+            <field eval="0" name="perm_unlink"/>
+            <field eval="1" name="perm_write"/>
+            <field eval="1" name="perm_read"/>
+            <field eval="0" name="perm_create"/>
+        </record>
+
         <record id="is_calendar_event_admin_access_rule" model="ir.rule">
             <field name="name">Accès en modification aux admins</field>
             <field name="model_id" ref="calendar.model_calendar_event"/>

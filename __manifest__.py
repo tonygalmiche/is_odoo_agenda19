@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name" : "InfoSaône - Module Odoo 19 pour Agenda Plastigray",
-    "version" : "19.0.1.0.2",
+    "version" : "19.0.1.0.3",
     "author" : "InfoSaône / Tony Galmiche",
     "category" : "InfoSaône",
     "description": """
