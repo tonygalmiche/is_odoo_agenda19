@@ -1,0 +1,67 @@
+// Couleurs Plastigray
+$plastigray-blue: #0096d6;       // Bleu principal (logo)
+$plastigray-blue-light: #cce8f6; // Bleu discret (fonds)
+
+// Permet de mettre un fond gris très clair pour voir les champs à saisir 
+.o_input {
+    background-color: rgb(250,250,250);
+}
+
+/* Mais il faut annuler ce style pour les descendants de .o_field_monetary sinon le montant n'est plus visible */
+.o_field_monetary .o_input {
+    background-color: inherit !important;  /* ou la couleur souhaitée */
+}
+
+// Permet de mettre un fond gris plus foncé pour les champs obligoaires 
+.o_required_modifier .o_input  {
+    background-color: #dee2e6  !important;
+}
+
+
+// Permet de supprimer le retour à la ligne du nom des champs
+.o_form_label{
+    white-space: nowrap;
+}
+
+
+
+
+// Pour les en-têtes de tableaux dans les vues one2many et many2many
+.o_form_view .o_field_one2many .o_list_table th,
+.o_form_view .o_field_many2many .o_list_table th {
+    background-color: $plastigray-blue-light !important;
+}
+
+// Onglet actif du notebook avec le même violet
+.o_form_view .o_notebook .nav-link.active {
+    background-color: $plastigray-blue-light !important;
+    border-color: darken($plastigray-blue-light, 8%) !important;
+}
+
+// Styles spécifiques pour les onglets du formulaire
+.o_notebook .nav-link {
+    border-color: #dee2e6 !important;
+    color: #495057 !important;
+}
+
+
+
+/* Pour changer la couleur de la barre de menus en haut */
+.o_main_navbar {    
+    background-color: $plastigray-blue;
+}
+.o_main_navbar .o_menu_sections .dropdown-toggle {
+    background-color: $plastigray-blue;
+}
+.o_main_navbar .o_menu_sections .o-dropdown-item {
+    background-color: $plastigray-blue;
+}
+
+
+
+// Boutons avec la couleur bleue Plastigray
+.btn-primary {
+    background-color: $plastigray-blue !important;
+    border-color: $plastigray-blue !important;
+}
+
