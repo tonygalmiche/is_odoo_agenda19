@@ -13,8 +13,8 @@ import logging
 _logger = logging.getLogger(__name__)
 
 # Fenêtre de synchronisation Google Agenda
-GOOGLE_SYNC_HORIZON_PAST_DAYS = 7   # jours dans le passé
-GOOGLE_SYNC_HORIZON_DAYS = 15       # jours dans le futur
+GOOGLE_SYNC_HORIZON_PAST_DAYS = 14   # jours dans le passé
+GOOGLE_SYNC_HORIZON_DAYS = 365       # jours dans le futur
 
 
 def _google_call_with_retry(func, *args, max_retries=3, **kwargs):
@@ -57,6 +57,9 @@ class CalendarEvent(models.Model):
         """
         if not user:
             return
+        # Ne pas synchroniser les événements archivés
+        if not event.active:
+            return
         # Ne synchroniser que les événements futurs ou en cours, et dans les 12 prochains mois
         now = fields.Datetime.now()
         past = now - relativedelta(days=GOOGLE_SYNC_HORIZON_PAST_DAYS)
@@ -80,7 +83,7 @@ class CalendarEvent(models.Model):
             if attendee and attendee.state == 'declined':
                 if attendee.is_google_event_id:
                     try:
-                        _logger.info("## %sGoogle delete user=%s event=%s start=%s", progress, user.login, attendee.is_google_event_id, event_start)
+                        _logger.info("## %sGoogle delete user=%s event=%s start=%s name=%s", progress, user.login, attendee.is_google_event_id, event_start, event.name)
                         _google_call_with_retry(gs.delete, attendee.is_google_event_id, token=token, timeout=3)
                         attendee.sudo().with_context(skip_google_sync=True).write({'is_google_event_id': False})
                     except Exception:
@@ -111,20 +114,22 @@ class CalendarEvent(models.Model):
             if attendee_google_id:
                 # L'événement existe déjà dans son agenda → patch
                 try:
-                    _logger.info("## %sGoogle patch user=%s event=%s start=%s", progress, user.login, attendee_google_id, event_start)
+                    _logger.info("## %sGoogle patch user=%s event=%s start=%s name=%s", progress, user.login, attendee_google_id, event_start, event.name)
                     _google_call_with_retry(gs.patch, attendee_google_id, values, token=token, timeout=3)
                 except Exception:
                     _logger.exception("## %sGoogle patch ERROR user=%s start=%s", progress, user.login, event_start)
             else:
                 # Première synchro → insertion dans son agenda
                 try:
-                    _logger.info("## %sGoogle insert user=%s start=%s", progress, user.login, event_start)
+                    _logger.info("## %sGoogle insert user=%s start=%s name=%s", progress, user.login, event_start, event.name)
                     google_values = _google_call_with_retry(gs.insert, values, token=token, timeout=3, need_video_call=False)
                     new_google_id = google_values and google_values.get('id')
                     if new_google_id and attendee:
                         attendee.sudo().with_context(skip_google_sync=True).write(
                             {'is_google_event_id': new_google_id}
                         )
+                        # Empêcher le module natif de re-synchroniser cet événement
+                        event.with_context(dont_notify=True).write({'need_sync': False})
                 except Exception:
                     _logger.exception("## %sGoogle insert ERROR user=%s start=%s", progress, user.login, event_start)
 
@@ -221,7 +226,7 @@ class CalendarEvent(models.Model):
         for event in self:
             for attendee in event.attendee_ids:
                 user = attendee.is_user_id
-                if not user or event.user_id == user:
+                if not user:
                     continue
                 if not attendee.is_google_event_id:
                     continue
@@ -232,7 +237,7 @@ class CalendarEvent(models.Model):
                     if token:
                         try:
                             gs = GoogleCalendarService(self.with_user(user).env['google.service'])
-                            _logger.info("## Google delete (unlink) participant user=%s event=%s", user.login, attendee.is_google_event_id)
+                            _logger.info("## Google delete (unlink) user=%s event=%s", user.login, attendee.is_google_event_id)
                             gs.delete(attendee.is_google_event_id, token=token, timeout=3)
                         except Exception:
                             _logger.exception("## Google delete (unlink) ERROR user=%s", user.login)
@@ -284,11 +289,11 @@ class CalendarEvent(models.Model):
         # du Google Agenda de chaque participant non-créateur ayant un
         # is_google_event_id. On le fait AVANT le super() car après, les
         # tokens ne sont plus accessibles proprement.
-        if values.get('active') is False:
+        if values.get('active') is False and not self.env.context.get('skip_google_sync'):
             for event in self:
                 for attendee in event.attendee_ids:
                     user = attendee.is_user_id
-                    if not user or event.user_id == user:
+                    if not user:
                         continue
                     if not attendee.is_google_event_id:
                         continue
@@ -312,7 +317,7 @@ class CalendarEvent(models.Model):
         # write() peut porter sur plusieurs événements à la fois.
         # dont_notify=True signifie que c'est le cron Google → Odoo qui écrit :
         # on ne relance surtout pas une synchro Odoo → Google dans ce cas.
-        sync_fields = {'name', 'start', 'stop', 'duration', 'description', 'location', 'allday'}
+        sync_fields = {'name', 'start', 'stop', 'duration', 'description', 'location', 'allday', 'partner_ids', 'attendee_ids'}
         if sync_fields & set(values.keys()) and not self.env.context.get('dont_notify'):
             for event in self:
                 attendees = event.attendee_ids
@@ -327,6 +332,11 @@ class CalendarEvent(models.Model):
         """Bloque la synchronisation Google → Odoo (sens unique Odoo → Google uniquement)."""
         _logger.info("## _sync_google2odoo bloqué par is_odoo_agenda19 (%s events ignorés)", len(list(google_events)))
         return self.browse()
+
+    def _sync_odoo2google(self, google_service):
+        """Bloque la synchronisation native Odoo → Google (gérée par synchroniser_google_user)."""
+        _logger.info("## _sync_odoo2google bloqué par is_odoo_agenda19 (%s events ignorés)", len(self))
+        return
 
     is_invitation_refusee_ids  = fields.Many2many(comodel_name='res.partner', relation='calendar_event_res_partner_refusee', column1="event_id", column2="partner_id", string="Utilisateurs ayant refusés")
     is_invitation_acceptee_ids = fields.Many2many(comodel_name='res.partner', relation='calendar_event_res_partner_acceptee', column1="event_id", column2="partner_id", string="Utilisateurs ayant acceptés")

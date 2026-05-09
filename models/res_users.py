@@ -85,6 +85,7 @@ class ResUsers(models.Model):
         limit = now + relativedelta(days=GOOGLE_SYNC_HORIZON_DAYS)
         attendees = self.env['calendar.attendee'].search([
             ('is_user_id', '=', self.id),
+            ('event_id.active', '=', True),
             ('event_id.start', '>=', past),
             ('event_id.start', '<=', limit),
         ])
@@ -138,7 +139,11 @@ class ResUsers(models.Model):
 
         if to_archive:
             _logger.warning("## doublons: archivage de %s événements en doublon", len(to_archive))
-            to_archive.with_context(dont_notify=True).write({'active': False})
+            # Vider google_id, need_sync et is_google_event_id AVANT d'archiver pour
+            # empêcher tout déclenchement de synchro Google (DELETE/PATCH/INSERT)
+            to_archive.with_context(dont_notify=True).write({'google_id': False, 'need_sync': False})
+            to_archive.mapped('attendee_ids').with_context(skip_google_sync=True).write({'is_google_event_id': False})
+            to_archive.with_context(dont_notify=True, skip_google_sync=True).write({'active': False})
         else:
             _logger.warning("## doublons: aucun doublon trouvé pour user=%s", self.login)
         _logger.warning("## doublons: terminé pour user=%s", self.login)
