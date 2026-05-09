@@ -12,6 +12,9 @@ from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarServ
 import logging
 _logger = logging.getLogger(__name__)
 
+# Fenêtre de synchronisation Google Agenda (en jours à partir d'aujourd'hui)
+GOOGLE_SYNC_HORIZON_DAYS = 30
+
 
 def _google_call_with_retry(func, *args, max_retries=3, **kwargs):
     """Appelle func(*args, **kwargs) en réessayant sur rateLimitExceeded (403)."""
@@ -19,6 +22,9 @@ def _google_call_with_retry(func, *args, max_retries=3, **kwargs):
         try:
             return func(*args, **kwargs)
         except HTTPError as e:
+            if e.response is not None and e.response.status_code == 410:
+                # Ressource déjà supprimée côté Google → ignorer silencieusement
+                return None
             if e.response is not None and e.response.status_code == 403 and attempt < max_retries - 1:
                 wait = 2 ** attempt  # 1s, 2s
                 _logger.warning("## Google 403, retry dans %ss (tentative %s/%s)", wait, attempt + 1, max_retries)
@@ -52,7 +58,7 @@ class CalendarEvent(models.Model):
             return
         # Ne synchroniser que les événements futurs ou en cours, et dans les 12 prochains mois
         now = fields.Datetime.now()
-        if event.start and (event.start < now or event.start > now + relativedelta(months=12)):
+        if event.start and (event.start < now or event.start > now + relativedelta(days=GOOGLE_SYNC_HORIZON_DAYS)):
             return
         user_sudo = user.sudo()
         if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
@@ -495,51 +501,78 @@ class CalendarAttendee(models.Model):
             obj.event_id.sudo().write({'is_invitation_refusee_ids': [(6, 0, declined)]})
             obj.event_id.sudo().write({'is_invitation_acceptee_ids': [(6, 0, accepted)]})
 
-    def reinitialiser_google_sync_action(self):
-        """Action serveur : supprime les événements Google connus, remet is_google_event_id
-        à False, puis relance une synchro propre pour tous les événements futurs (<= 12 mois).
+    def reinitialiser_google_sync_action(self, user_id=None):
+        """Réinitialise la synchro Google pour les événements futurs (≤ 12 mois).
 
-        Les événements orphelins (doublons dont l'ID n'est plus en base) devront être
-        supprimés manuellement dans Google Agenda.
+        Si user_id est fourni, traite uniquement cet utilisateur.
+        1. Supprime dans Google tous les événements dont l'ID est connu,
+           groupés par utilisateur (1 seule ouverture de token par user).
+        2. Remet is_google_event_id à False.
+        3. Recrée proprement un événement par attendee via INSERT.
         """
         active_ids = self.env.context.get('active_ids', [])
-        if active_ids:
-            attendees = self.browse(active_ids)
-        else:
-            # Tous les attendees ayant un is_google_event_id
-            attendees = self.search([('is_google_event_id', '!=', False)])
+        now = fields.Datetime.now()
+        limit = now + relativedelta(days=GOOGLE_SYNC_HORIZON_DAYS)
+        base_domain = [
+            ('is_google_event_id', '!=', False),
+            ('event_id.start', '>=', now),
+            ('event_id.start', '<=', limit),
+        ]
+        if user_id:
+            base_domain.append(('is_user_id', '=', user_id))
 
-        # 1. Supprimer les événements Google connus
+        if active_ids:
+            attendees = self.browse(active_ids).filtered(
+                lambda a: a.event_id.start and now <= a.event_id.start <= limit
+                and (not user_id or a.is_user_id.id == user_id)
+            )
+        else:
+            attendees = self.search(base_domain)
+
+        # --- 1. Supprimer par blocs d'utilisateur ---
+        # Regrouper les google_event_id par utilisateur
+        from collections import defaultdict
+        by_user = defaultdict(list)  # {user_id: [(attendee, google_event_id), ...]}
         for attendee in attendees:
             user = attendee.is_user_id
-            if not user or not attendee.is_google_event_id:
-                continue
+            if user and attendee.is_google_event_id:
+                by_user[user.id].append((attendee, attendee.is_google_event_id))
+
+        total_users = len(by_user)
+        for u_idx, (user_id, items) in enumerate(by_user.items(), start=1):
+            user = self.env['res.users'].browse(user_id)
             user_sudo = user.sudo()
             if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
                 continue
             with google_calendar_token(user_sudo) as token:
-                if token:
+                if not token:
+                    continue
+                gs = GoogleCalendarService(
+                    self.with_user(user).with_context(send_updates=False).env['google.service']
+                )
+                total_ev = len(items)
+                for ev_idx, (attendee, google_event_id) in enumerate(items, start=1):
                     try:
-                        gs = GoogleCalendarService(
-                            self.with_user(user).with_context(send_updates=False).env['google.service']
-                        )
-                        _logger.info("## reinit: delete Google event user=%s id=%s", user.login, attendee.is_google_event_id)
-                        _google_call_with_retry(gs.delete, attendee.is_google_event_id, token=token, timeout=3)
+                        _logger.info("## reinit: user %s/%s | event %s/%s | delete user=%s id=%s start=%s",
+                                     u_idx, total_users, ev_idx, total_ev,
+                                     user.login, google_event_id, attendee.event_id.start)
+                        _google_call_with_retry(gs.delete, google_event_id, token=token, timeout=3)
                     except Exception:
-                        _logger.exception("## reinit: delete ERROR user=%s id=%s", user.login, attendee.is_google_event_id)
+                        _logger.exception("## reinit: delete ERROR user=%s id=%s", user.login, google_event_id)
 
-        # 2. Réinitialiser tous les is_google_event_id
+        # --- 2. Réinitialiser les is_google_event_id ---
         attendees.with_context(skip_google_sync=True).write({'is_google_event_id': False})
         _logger.info("## reinit: %s attendees réinitialisés", len(attendees))
 
-        # 3. Relancer une synchro propre pour tous les événements futurs
-        now = fields.Datetime.now()
-        limit = now + relativedelta(months=12)
-        future_attendees = self.search([
+        # --- 3. Recréer proprement ---
+        recreate_domain = [
             ('is_google_event_id', '=', False),
             ('event_id.start', '>=', now),
             ('event_id.start', '<=', limit),
-        ])
+        ]
+        if user_id:
+            recreate_domain.append(('is_user_id', '=', user_id))
+        future_attendees = self.search(recreate_domain)
         total = len(future_attendees)
         _logger.info("## reinit: %s attendees à resynchroniser", total)
         for idx, attendee in enumerate(future_attendees, start=1):

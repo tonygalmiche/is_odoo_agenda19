@@ -41,13 +41,21 @@
                     </group>
                     <separator string="Palette des couleurs disponibles"/>
                     <field name="is_calendar_color_table" nolabel="1" readonly="1"/>
-                    <group invisible="not google_calendar_rtoken or google_synchronization_stopped">
-                        <separator string="Synchronisation Google Agenda"/>
-                        <button name="action_reinitialiser_google_sync" type="object"
-                                string="Réinitialiser la synchro Google"
-                                icon="fa-refresh"
-                                confirm="Cela va supprimer tous les événements Google connus pour cet utilisateur et les recréer. Continuer ?"
-                                class="btn-warning"/>
+                    <group groups="is_odoo_agenda19.is_google_synchronisation_group" string="Synchronisation Google Agenda">
+                        <group>
+                            <button name="action_supprimer_google_events" type="object"
+                                    string="Supprimer les événements Google"
+                                    icon="fa-trash"
+                                    confirm="Cela va supprimer tous les événements Google connus pour cet utilisateur (30 prochains jours). Continuer ?"
+                                    class="btn-danger"/>
+                        </group>
+                        <group>
+                            <button name="action_synchroniser_google" type="object"
+                                    string="Synchroniser vers Google"
+                                    icon="fa-refresh"
+                                    confirm="Cela va synchroniser les événements Odoo vers Google pour cet utilisateur (30 prochains jours). Continuer ?"
+                                    class="btn-warning"/>
+                        </group>
                     </group>
                 </page>
             </xpath>
