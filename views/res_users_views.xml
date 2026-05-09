@@ -41,6 +41,14 @@
                     </group>
                     <separator string="Palette des couleurs disponibles"/>
                     <field name="is_calendar_color_table" nolabel="1" readonly="1"/>
+                    <group invisible="not google_calendar_rtoken or google_synchronization_stopped">
+                        <separator string="Synchronisation Google Agenda"/>
+                        <button name="action_reinitialiser_google_sync" type="object"
+                                string="Réinitialiser la synchro Google"
+                                icon="fa-refresh"
+                                confirm="Cela va supprimer tous les événements Google connus pour cet utilisateur et les recréer. Continuer ?"
+                                class="btn-warning"/>
+                    </group>
                 </page>
             </xpath>
         </field>
