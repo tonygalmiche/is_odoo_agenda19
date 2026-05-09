@@ -12,8 +12,9 @@ from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarServ
 import logging
 _logger = logging.getLogger(__name__)
 
-# Fenêtre de synchronisation Google Agenda (en jours à partir d'aujourd'hui)
-GOOGLE_SYNC_HORIZON_DAYS = 30
+# Fenêtre de synchronisation Google Agenda
+GOOGLE_SYNC_HORIZON_PAST_DAYS = 7   # jours dans le passé
+GOOGLE_SYNC_HORIZON_DAYS = 15       # jours dans le futur
 
 
 def _google_call_with_retry(func, *args, max_retries=3, **kwargs):
@@ -58,7 +59,8 @@ class CalendarEvent(models.Model):
             return
         # Ne synchroniser que les événements futurs ou en cours, et dans les 12 prochains mois
         now = fields.Datetime.now()
-        if event.start and (event.start < now or event.start > now + relativedelta(days=GOOGLE_SYNC_HORIZON_DAYS)):
+        past = now - relativedelta(days=GOOGLE_SYNC_HORIZON_PAST_DAYS)
+        if event.start and (event.start < past or event.start > now + relativedelta(days=GOOGLE_SYNC_HORIZON_DAYS)):
             return
         user_sudo = user.sudo()
         if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
@@ -321,6 +323,11 @@ class CalendarEvent(models.Model):
                     )
         return res
 
+    def _sync_google2odoo(self, google_events, write_dates=None, default_reminders=()):
+        """Bloque la synchronisation Google → Odoo (sens unique Odoo → Google uniquement)."""
+        _logger.info("## _sync_google2odoo bloqué par is_odoo_agenda19 (%s events ignorés)", len(list(google_events)))
+        return self.browse()
+
     is_invitation_refusee_ids  = fields.Many2many(comodel_name='res.partner', relation='calendar_event_res_partner_refusee', column1="event_id", column2="partner_id", string="Utilisateurs ayant refusés")
     is_invitation_acceptee_ids = fields.Many2many(comodel_name='res.partner', relation='calendar_event_res_partner_acceptee', column1="event_id", column2="partner_id", string="Utilisateurs ayant acceptés")
 
@@ -501,6 +508,21 @@ class CalendarAttendee(models.Model):
             obj.event_id.sudo().write({'is_invitation_refusee_ids': [(6, 0, declined)]})
             obj.event_id.sudo().write({'is_invitation_acceptee_ids': [(6, 0, accepted)]})
 
+    def _log_attendees_dans_plage(self, now, limit, user_id=None):
+        """Affiche dans les logs tous les attendees dans la fenêtre de synchro."""
+        diag_domain = [
+            ('event_id.start', '>=', now),
+            ('event_id.start', '<=', limit),
+        ]
+        if user_id:
+            diag_domain.append(('is_user_id', '=', user_id))
+        all_attendees = self.search(diag_domain)
+        _logger.warning("## reinit: %s attendees dans la plage (%s jours)", len(all_attendees), GOOGLE_SYNC_HORIZON_DAYS)
+        for a in all_attendees:
+            _logger.warning("## reinit: attendee id=%s | event_id=%s | name=%s | start=%s | google_id=%s | user=%s",
+                            a.id, a.event_id.id, a.event_id.name, a.event_id.start,
+                            a.is_google_event_id or '-', a.is_user_id.login if a.is_user_id else '-')
+
     def reinitialiser_google_sync_action(self, user_id=None):
         """Réinitialise la synchro Google pour les événements futurs (≤ 12 mois).
 
@@ -512,10 +534,11 @@ class CalendarAttendee(models.Model):
         """
         active_ids = self.env.context.get('active_ids', [])
         now = fields.Datetime.now()
+        past = now - relativedelta(days=GOOGLE_SYNC_HORIZON_PAST_DAYS)
         limit = now + relativedelta(days=GOOGLE_SYNC_HORIZON_DAYS)
         base_domain = [
             ('is_google_event_id', '!=', False),
-            ('event_id.start', '>=', now),
+            ('event_id.start', '>=', past),
             ('event_id.start', '<=', limit),
         ]
         if user_id:
@@ -523,11 +546,14 @@ class CalendarAttendee(models.Model):
 
         if active_ids:
             attendees = self.browse(active_ids).filtered(
-                lambda a: a.event_id.start and now <= a.event_id.start <= limit
+                lambda a: a.event_id.start and past <= a.event_id.start <= limit
                 and (not user_id or a.is_user_id.id == user_id)
             )
         else:
             attendees = self.search(base_domain)
+
+        # --- 0. Diagnostic ---
+        self._log_attendees_dans_plage(past, limit, user_id=user_id)
 
         # --- 1. Supprimer par blocs d'utilisateur ---
         # Regrouper les google_event_id par utilisateur
@@ -567,7 +593,7 @@ class CalendarAttendee(models.Model):
         # --- 3. Recréer proprement ---
         recreate_domain = [
             ('is_google_event_id', '=', False),
-            ('event_id.start', '>=', now),
+            ('event_id.start', '>=', past),
             ('event_id.start', '<=', limit),
         ]
         if user_id:

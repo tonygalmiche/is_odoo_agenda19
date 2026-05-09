@@ -42,20 +42,26 @@
                     <separator string="Palette des couleurs disponibles"/>
                     <field name="is_calendar_color_table" nolabel="1" readonly="1"/>
                     <group groups="is_odoo_agenda19.is_google_synchronisation_group" string="Synchronisation Google Agenda">
-                        <group>
+                        <div style="display:flex; flex-direction:column; align-items:flex-start; gap:8px;">
+                            <button name="action_supprimer_doublons_odoo" type="object"
+                                    string="Supprimer les doublons Odoo"
+                                    icon="fa-clone"
+                                    confirm="Cela va archiver les événements en doublon dans Odoo pour cet utilisateur (J-7 / J+15). Continuer ?"
+                                    class="btn-danger"
+                                    style="white-space:nowrap"/>
                             <button name="action_supprimer_google_events" type="object"
                                     string="Supprimer les événements Google"
                                     icon="fa-trash"
-                                    confirm="Cela va supprimer tous les événements Google connus pour cet utilisateur (30 prochains jours). Continuer ?"
-                                    class="btn-danger"/>
-                        </group>
-                        <group>
+                                    confirm="Cela va supprimer tous les événements Google connus pour cet utilisateur. Continuer ?"
+                                    class="btn-warning"
+                                    style="white-space:nowrap"/>
                             <button name="action_synchroniser_google" type="object"
                                     string="Synchroniser vers Google"
                                     icon="fa-refresh"
-                                    confirm="Cela va synchroniser les événements Odoo vers Google pour cet utilisateur (30 prochains jours). Continuer ?"
-                                    class="btn-warning"/>
-                        </group>
+                                    confirm="Cela va synchroniser les événements Odoo vers Google pour cet utilisateur. Continuer ?"
+                                    class="btn-secondary"
+                                    style="white-space:nowrap"/>
+                        </div>
                     </group>
                 </page>
             </xpath>
