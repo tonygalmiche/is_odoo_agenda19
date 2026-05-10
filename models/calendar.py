@@ -37,6 +37,15 @@ def _google_call_with_retry(func, *args, max_retries=3, **kwargs):
 class CalendarEvent(models.Model):
     _inherit = 'calendar.event'
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Désactiver le sync natif Google (google_sync.create appelle _google_insert
+        # directement, indépendamment de _sync_odoo2google). Notre module gère la
+        # synchronisation via synchroniser_google_user / CalendarAttendee.write.
+        for vals in vals_list:
+            vals['need_sync'] = False
+        return super().create(vals_list)
+
     @api.model
     def search_read(self, *args, **kwargs):
         # HACK pour ne lister que les événements acceptés ou incertains
@@ -133,6 +142,22 @@ class CalendarEvent(models.Model):
                 except Exception:
                     _logger.exception("## %sGoogle insert ERROR user=%s start=%s", progress, user.login, event_start)
 
+
+    def action_unlink_event(self, attendee_id=None, recurrence=False):
+        """Surcharge pour corriger le bug natif Odoo/Google : quand
+        _has_any_active_synchronization() est True et plusieurs participants,
+        le natif appelle self.unlink() sur UN SEUL event en ignorant recurrence='all'.
+        On rétablit le comportement correct selon le choix de l'utilisateur.
+        """
+        switch = {'next': 'future_events', 'all': 'all_events'}
+        if recurrence in switch:
+            self.action_mass_deletion(switch[recurrence])
+            return {'type': 'ir.actions.act_url', 'target': 'self', 'url': '/odoo/calendar'}
+        # Pour 'one' ou False : comportement natif
+        return super().action_unlink_event(attendee_id=attendee_id, recurrence=recurrence)
+
+    def action_mass_deletion(self, recurrence_update_setting):
+        return super().action_mass_deletion(recurrence_update_setting)
 
     def synchroniser_google_action(self):
         for obj in self.browse(self.env.context['active_ids']):
@@ -299,6 +324,8 @@ class CalendarEvent(models.Model):
                         continue
                     user_sudo = user.sudo()
                     if not user_sudo.google_calendar_rtoken or user_sudo.google_synchronization_stopped:
+                        # Vider quand même pour ne pas avoir un ID orphelin
+                        attendee.sudo().with_context(skip_google_sync=True).write({'is_google_event_id': False})
                         continue
                     with google_calendar_token(user_sudo) as token:
                         if token:
@@ -310,7 +337,22 @@ class CalendarEvent(models.Model):
                                 gs.delete(attendee.is_google_event_id, token=token, timeout=3)
                             except Exception:
                                 _logger.exception("## Google delete (archive) ERROR user=%s", user.login)
+                            finally:
+                                # Toujours vider l'ID pour que le prochain write(active=True)
+                                # déclenche un insert et non un patch sur un ID supprimé
+                                attendee.sudo().with_context(skip_google_sync=True).write({'is_google_event_id': False})
         res = super(CalendarEvent, self).write(values)
+        # Quand un événement est réactivé (active=True, ex. base event après modification
+        # d'une série), il faut le re-synchroniser vers Google car is_google_event_id
+        # a été vidé lors de l'archivage précédent.
+        if values.get('active') is True and not self.env.context.get('dont_notify') and not self.env.context.get('skip_google_sync'):
+            for event in self:
+                attendees = event.attendee_ids
+                total = len(attendees)
+                for idx, attendee in enumerate(attendees, start=1):
+                    self.env['calendar.event'].sudo().synchroniser_google_user(
+                        event, attendee.is_user_id, attendee, idx=idx, total=total
+                    )
         # Après la sauvegarde, synchroniser vers Google Agenda pour chaque
         # participant ayant activé la synchro Google, mais uniquement si l'un
         # des champs métier pertinents a été modifié. On itère sur self car
@@ -323,6 +365,8 @@ class CalendarEvent(models.Model):
                 attendees = event.attendee_ids
                 total = len(attendees)
                 for idx, attendee in enumerate(attendees, start=1):
+                    if event.follow_recurrence and not attendee.is_google_event_id:
+                        continue
                     self.env['calendar.event'].sudo().synchroniser_google_user(
                         event, attendee.is_user_id, attendee, idx=idx, total=total
                     )
@@ -343,6 +387,31 @@ class CalendarEvent(models.Model):
 
     is_teams_event_id = fields.Char('Teams event_id', copy=False, index=True)
     is_teams_ical_uid = fields.Char('Teams iCalUId' , copy=False, index=True)
+
+
+class CalendarRecurrence(models.Model):
+    """Bloque le sync natif Google sur les récurrences.
+
+    Quand une récurrence est créée, google_sync.create() l'insère dans Google
+    comme un événement récurrent natif (N occurrences visibles). Notre module
+    insère ensuite N événements individuels via synchroniser_google_user.
+    Résultat : 2N événements dans Google. Forcer need_sync=False bloque le natif.
+    """
+    _inherit = 'calendar.recurrence'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            vals['need_sync'] = False
+        return super().create(vals_list)
+
+    def _sync_google2odoo(self, google_events, write_dates=None, default_reminders=()):
+        _logger.info("## CalendarRecurrence._sync_google2odoo bloqué (%s events ignorés)", len(list(google_events)))
+        return self.browse()
+
+    def _sync_odoo2google(self, google_service):
+        _logger.info("## CalendarRecurrence._sync_odoo2google bloqué (%s récurrences ignorées)", len(self))
+        return
 
 
 class CalendarAttendee(models.Model):

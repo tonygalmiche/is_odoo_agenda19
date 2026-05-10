@@ -97,7 +97,33 @@ Les appels sont faits avec `send_updates=False` (pas d'invitations Google). La l
 
 ---
 
-## 4. Outils de maintenance (`res.users`)
+## 4. Bugs rencontrés et corrigés le 2026-05-10
+
+### 4.1 Doublons dans Google lors de la création d'un événement récurrent
+
+**Cause :** `google_sync.create()` appelle `_google_insert()` directement (contourne `_sync_odoo2google()`), et `CalendarRecurrence` insère en plus un événement récurrent natif.
+
+**Correction :** Forcer `need_sync=False` dans `CalendarEvent.create()` et `CalendarRecurrence.create()` avant `super()`.
+
+---
+
+### 4.2 "Supprimer tous les événements de la série" ne supprime que le premier
+
+**Cause :** `action_unlink_event()` natif court-circuite la logique de série quand `_has_any_active_synchronization()` retourne `True` : il appelle `self.unlink()` sur l'événement courant uniquement.
+
+**Correction :** Surcharge d'`action_unlink_event()` pour intercepter `recurrence='all'`/`'next'` et appeler directement `action_mass_deletion()`.
+
+---
+
+### 4.3 Après modification de tous les événements, le premier disparaît du Google Agenda
+
+**Cause :** Odoo archive tous les events (`active=False`) → notre code les supprime de Google mais **oubliait de vider `is_google_event_id`**. Ensuite Odoo réactive le base event ; `synchroniser_google_user()` voyait un ID non vide → tentait un `PATCH` sur un ID supprimé → erreur `410 Gone` silencieuse → event jamais inséré.
+
+**Correction :** Dans le bloc `active=False`, vider `is_google_event_id` dans un `finally` après le DELETE. Ajouter un bloc `active=True` qui déclenche `synchroniser_google_user()` → le base event réactivé est correctement inséré.
+
+---
+
+## 5. Outils de maintenance (`res.users`)
 
 Trois actions manuelles disponibles sur la fiche utilisateur (mode admin) :
 
