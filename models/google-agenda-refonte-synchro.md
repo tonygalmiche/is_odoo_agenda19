@@ -123,6 +123,22 @@ Les appels sont faits avec `send_updates=False` (pas d'invitations Google). La l
 
 ---
 
+### 4.4 Rappels Odoo silencieux quand la synchro Google est active
+
+**Cause :** `google_calendar` surcharge `_get_notify_alert_extra_conditions()` en ajoutant `AND event.google_id IS NULL`. Le cron de rappels Odoo ignore donc tous les événements ayant un `google_id`, car Google est censé les envoyer à leur place. Comme notre module ne délègue pas les rappels à Google, ils étaient perdus.
+
+**Correction :** Surcharge de `_get_notify_alert_extra_conditions()` dans notre module pour retourner `SQL("")` (aucun filtre), restaurant le comportement normal pour tous les événements.
+
+---
+
+### 4.5 Erreur `eventRemindersCountExceedsLimit` lors du PATCH/INSERT Google
+
+**Cause :** La méthode native `_google_values()` inclut toujours la clé `reminders` (liste des `alarm_ids` Odoo). Google rejette la requête avec une erreur 400 si le nombre de rappels dépasse sa limite.
+
+**Correction :** Supprimer la clé `reminders` du payload avant l'envoi à Google (`values.pop('reminders', None)`), de la même façon que `attendees` et `id`. Les rappels restent gérés exclusivement par Odoo.
+
+---
+
 ## 5. Outils de maintenance (`res.users`)
 
 Trois actions manuelles disponibles sur la fiche utilisateur (mode admin) :

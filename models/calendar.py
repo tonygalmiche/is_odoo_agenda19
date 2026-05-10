@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from requests.exceptions import HTTPError
 
 from odoo import api, fields, models, _
+from odoo.tools import SQL
 from odoo.addons.google_calendar.models.google_sync import google_calendar_token
 from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
 import logging
@@ -103,9 +104,12 @@ class CalendarEvent(models.Model):
             values = event._google_values()
 
             # Supprimer les attendees pour ne pas envoyer d'invitations Google
-            # (évite les erreurs quotaExceeded) et l'id du créateur
+            # (évite les erreurs quotaExceeded) et l'id du créateur.
+            # Supprimer aussi les reminders : les rappels sont gérés par Odoo,
+            # pas par Google (évite l'erreur eventRemindersCountExceedsLimit).
             values.pop('attendees', None)
             values.pop('id', None)
+            values.pop('reminders', None)
 
             # Ajouter la liste des participants dans la Description
             participant_names = [att.partner_id.name for att in event.attendee_ids if att.partner_id]
@@ -684,3 +688,18 @@ class CalendarAttendee(models.Model):
             self.env['calendar.event'].sudo().synchroniser_google_user(
                 attendee.event_id, attendee.is_user_id, attendee, idx=idx, total=total
             )
+
+
+class CalendarAlarmManager(models.AbstractModel):
+    _inherit = 'calendar.alarm_manager'
+
+    @api.model
+    def _get_notify_alert_extra_conditions(self):
+        """Annule le filtre 'google_id IS NULL' ajouté par le module google_calendar.
+
+        Le module natif bloque les rappels Odoo pour tous les événements ayant un
+        google_id, car Google est censé envoyer les rappels à leur place.
+        Ici, nous gérons la synchro nous-mêmes sans déléguer les rappels à Google,
+        donc tous les événements doivent recevoir leurs rappels Odoo normalement.
+        """
+        return SQL("")
