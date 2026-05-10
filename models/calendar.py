@@ -147,6 +147,15 @@ class CalendarEvent(models.Model):
                     _logger.exception("## %sGoogle insert ERROR user=%s start=%s", progress, user.login, event_start)
 
 
+    def _skip_send_mail_status_update(self):
+        """Annule le blocage des rappels email introduit par google_calendar.
+
+        Le natif retourne True si l'utilisateur a Google Calendar synchronisé,
+        empêchant l'envoi des mails de rappel Odoo (Google était censé les envoyer).
+        Comme nous gérons la synchro nous-mêmes, Odoo doit toujours envoyer les rappels.
+        """
+        return False
+
     def action_unlink_event(self, attendee_id=None, recurrence=False):
         """Surcharge pour corriger le bug natif Odoo/Google : quand
         _has_any_active_synchronization() est True et plusieurs participants,

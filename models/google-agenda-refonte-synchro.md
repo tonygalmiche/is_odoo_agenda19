@@ -125,9 +125,24 @@ Les appels sont faits avec `send_updates=False` (pas d'invitations Google). La l
 
 ### 4.4 Rappels Odoo silencieux quand la synchro Google est active
 
-**Cause :** `google_calendar` surcharge `_get_notify_alert_extra_conditions()` en ajoutant `AND event.google_id IS NULL`. Le cron de rappels Odoo ignore donc tous les événements ayant un `google_id`, car Google est censé les envoyer à leur place. Comme notre module ne délègue pas les rappels à Google, ils étaient perdus.
+Deux blocages distincts dans `google_calendar` empêchaient l'envoi des mails de rappel :
 
-**Correction :** Surcharge de `_get_notify_alert_extra_conditions()` dans notre module pour retourner `SQL("")` (aucun filtre), restaurant le comportement normal pour tous les événements.
+**Blocage 1 — filtre SQL :** `_get_notify_alert_extra_conditions()` ajoute `AND event.google_id IS NULL`. Le cron ne récupère donc aucun événement ayant un `google_id` → rien à notifier.
+
+**Correction :** Surcharge de `_get_notify_alert_extra_conditions()` pour retourner `SQL("")`.
+
+**Blocage 2 — exclusion des attendees :** `_skip_send_mail_status_update()` retourne `True` si l'utilisateur a Google Calendar actif. La méthode `_notify_attendees()` retire alors ces participants de la liste → mail jamais envoyé même si le cron trouve l'événement.
+
+**Correction :** Surcharge de `_skip_send_mail_status_update()` pour retourner `False`.
+
+**Prérequis données :** Les `calendar.alarm` de type `email` doivent avoir `mail_template_id` renseigné (pointant vers `calendar.calendar_template_meeting_reminder`). Si ce champ est `NULL` en base (alarmes créées avant qu'Odoo le calcule), le cron loggue `No template passed` et skipe. Corriger via SQL :
+```sql
+UPDATE calendar_alarm SET mail_template_id = (
+    SELECT res_id FROM ir_model_data WHERE module = 'calendar' AND name = 'calendar_template_meeting_reminder'
+) WHERE alarm_type = 'email' AND mail_template_id IS NULL;
+```
+
+**Note :** Le cron ne renvoie jamais un rappel dont le `trigger_at` est antérieur au dernier appel du cron (`lastcall`). Il faut créer l'événement suffisamment à l'avance.
 
 ---
 
