@@ -2,6 +2,16 @@
 $plastigray-blue: #0096d6;       // Bleu principal (logo)
 $plastigray-blue-light: #cce8f6; // Bleu discret (fonds)
 
+// Popup événement calendrier : largeur élargie et titre avec retour à la ligne
+.o_cw_popover {
+    width: 550px;
+    .popover-header {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+    }
+}
+
 // Permet de mettre un fond gris très clair pour voir les champs à saisir 
 .o_input {
     background-color: rgb(250,250,250);

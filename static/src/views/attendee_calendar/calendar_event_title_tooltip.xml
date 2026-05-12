@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates>
+    <t t-name="is_odoo_agenda19.AttendeeCalendarCommonRendererEventPatch"
+       t-inherit="calendar.AttendeeCalendarCommonRenderer.event"
+       t-inherit-mode="extension">
+        <xpath expr="//span[@t-esc='title']" position="attributes">
+            <attribute name="t-att-data-tooltip">title</attribute>
+        </xpath>
+    </t>
+</templates>
