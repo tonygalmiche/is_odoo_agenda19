@@ -45,7 +45,17 @@ class CalendarEvent(models.Model):
         # synchronisation via synchroniser_google_user / CalendarAttendee.write.
         for vals in vals_list:
             vals['need_sync'] = False
-        return super().create(vals_list)
+        events = super().create(vals_list)
+        # Accepter automatiquement l'invitation de l'organisateur uniquement
+        for event in events:
+            organizer_partner = event.user_id.partner_id
+            if organizer_partner:
+                to_accept = event.attendee_ids.filtered(
+                    lambda a: a.partner_id == organizer_partner and a.state != 'accepted'
+                )
+                if to_accept:
+                    to_accept.with_context(skip_google_sync=True).write({'state': 'accepted'})
+        return events
 
     @api.model
     def search_read(self, *args, **kwargs):
@@ -455,10 +465,10 @@ class CalendarAttendee(models.Model):
 
     def do_decline(self):
         for attendee in self:
-            attendee.event_id.sudo().message_post(
-                author_id=attendee.partner_id.id,
+            # message_log : note dans le chatter sans notification email aux abonnés
+            # L'organisateur est notifié séparément via send_mail_decline → _send_mail_decline_single
+            attendee.event_id.sudo()._message_log(
                 body=_("%s has declined the invitation", attendee.common_name),
-                subtype_xmlid="calendar.subtype_invitation",
             )
         return self.sudo().write({'state': 'declined'})
 
