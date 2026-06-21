@@ -250,9 +250,31 @@ class CalendarEvent(models.Model):
                     lines.append('-  <i style="color:gray">'+attendee.partner_id.name+"</i>")
             obj.is_participants = "<br />".join(lines)
 
+    @api.depends('attendee_ids.partner_id', 'attendee_ids.state')
+    def _compute_is_participants_tracking(self):
+        state_labels = {'accepted': 'Accepté', 'declined': 'Refusé', 'tentative': 'Incertain', 'needsAction': 'En attente'}
+        for obj in self:
+            parts = []
+            for attendee in obj.attendee_ids:
+                label = state_labels.get(attendee.state, attendee.state)
+                parts.append("%s (%s)" % (attendee.partner_id.name, label))
+            obj.is_participants_tracking = ", ".join(parts)
 
-    is_alerte       = fields.Text('Alerte'      , copy=False, compute=_compute_is_alerte)
-    is_participants = fields.Html('Participants', copy=False, compute=_compute_is_participants, sanitize=False)
+
+    name        = fields.Char(tracking=True)
+    start       = fields.Datetime(tracking=True)
+    stop        = fields.Datetime(tracking=True)
+    duration    = fields.Float(tracking=True)
+    allday      = fields.Boolean(tracking=True)
+    location    = fields.Char(tracking=True)
+    description = fields.Html(tracking=True)
+    privacy     = fields.Selection(tracking=True)
+    show_as     = fields.Selection(tracking=True)
+    user_id     = fields.Many2one(tracking=True)
+
+    is_alerte               = fields.Text('Alerte'      , copy=False, compute=_compute_is_alerte)
+    is_participants         = fields.Html('Participants', copy=False, compute=_compute_is_participants, sanitize=False)
+    is_participants_tracking = fields.Char('Participants (suivi)', copy=False, compute='_compute_is_participants_tracking', store=True, tracking=True)
 
     @api.depends('user_id.partner_id.is_calendar_color')
     def _compute_is_creator_calendar_color(self):
